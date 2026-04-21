@@ -1,50 +1,35 @@
--- $$\   $$\  $$$$$$\  $$\   $$\ $$\   $$\ $$$$$$$\  
--- $$$\  $$ |$$  __$$\ $$ |  $$ |$$ |  $$ |$$  __$$\ 
--- $$$$\ $$ |$$ /  \__|$$ |  $$ |$$ |  $$ |$$ |  $$ |
--- $$ $$\$$ |$$ |      $$$$$$$$ |$$ |  $$ |$$$$$$$\ |
--- $$ \$$$$ |$$ |      $$  __$$ |$$ |  $$ |$$  __$$\ 
--- $$ |\$$$ |$$ |  $$\ $$ |  $$ |$$ |  $$ |$$ |  $$ |
--- $$ | \$$ |\$$$$$$  |$$ |  $$ |\$$$$$$  |$$$$$$$  |
--- \__|  \__| \______/ \__|  \__| \______/ \_______/  
--- Discord.gg/NCHub & Patreon.com/NCHub
-fx_version 'bodacious'
+fx_version 'cerulean'
+game 'gta5'
 
-version '0.0.0'
-
-games { 'gta5' }
-
+name 'exter-playerlist'
+author 'NCHub (patched by Codex)'
+version '1.1.0'
+lua54 'yes'
 
 ui_page 'html/index.html'
+
 files {
   'html/index.html',
   'html/script.js',
   'html/style.css',
   'html/*otf',
   'html/*png',
+  'html/sounds/*.ogg',
   'images/*.png',
   'images/*.jpg',
   'images/*.webp',
   'images/*.mp4',
   'fonts/*.ttf',
   'fonts/*.otf'
- 
 }
 
-client_scripts{
-    'client/client.lua',
-    'config.lua'
-}
+shared_script 'config.lua'
 
-server_scripts {
-  '@mysql-async/lib/MySQL.lua',
-  'server/server.lua',
-  'config.lua',
-}
+client_script 'client/client.lua'
+server_script 'server/server.lua'
 
 escrow_ignore {
   'config.lua',
   'client/client.lua',
-  'server/server.lua',
+  'server/server.lua'
 }
-
-lua54 "yes"
