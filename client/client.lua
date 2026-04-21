@@ -1,115 +1,111 @@
 local playerList = {}
 local disconnectedPlayers = {}
-QB = {}
-RegisterKeyMapping('list', 'Open Player List', 'keyboard', 'PAGEUP')
 local showingPlayerIds = false
+local uiOpen = false
 
-RegisterCommand("list", function()
-    TriggerEvent('qb-playerlist:client:manualUpdate')
-    Wait(500)
-    if playerList then 
-        SendNUIMessage({
-            type = "OPEN",
-            data = {
-                activePlayers = playerList,
-                disconnectedPlayers = disconnectedPlayers
-            }
-        })
-        SetNuiFocus(true, true)
-        SetNuiFocusKeepInput(true)
-        showingPlayerIds = true
-        TriggerEvent('showPlayerIds', true) 
+RegisterKeyMapping(Config.Settings.command, 'Open Player List', 'keyboard', Config.Settings.keybind)
 
-        CreateThread(function()
-            while true do
-                Wait(0)
-                if IsControlJustReleased(0, 322) then 
-                    SetNuiFocus(false, false)
-                    SetNuiFocusKeepInput(false)
-                    showingPlayerIds = false
-                    TriggerEvent('showPlayerIds', false)
-                    break
-                end
-            end
-        end)
+local function closeUi()
+    if not uiOpen then
+        return
     end
-end)
 
-RegisterNetEvent('showPlayerIds')
-AddEventHandler('showPlayerIds', function(show)
-    if show then
-        CreateThread(function()
-            while showingPlayerIds do
-                local playerPed = PlayerPedId()
-                local playerCoords = GetEntityCoords(playerPed)
-                for _, playerId in ipairs(GetActivePlayers()) do
-                    local otherPed = GetPlayerPed(playerId)
-                    if otherPed ~= playerPed then
-                        local otherCoords = GetEntityCoords(otherPed)
-                        local distance = #(playerCoords - otherCoords)
-                        if distance <= 5.0 then
-                            DrawText3D(otherCoords.x, otherCoords.y, otherCoords.z + 1.0, tostring(GetPlayerServerId(playerId)))
-                        end
-                    end
-                end
-                Wait(0)
-            end
-        end)
-    end
-end)
+    uiOpen = false
+    showingPlayerIds = false
 
-function DrawText3D(x, y, z, text)
-    local onScreen, _x, _y = World3dToScreen2d(x, y, z)
-    local px, py, pz = table.unpack(GetGameplayCamCoords())
-    local scale = 0.35
+    SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
 
-    if onScreen then
-        SetTextScale(scale, scale)
-        SetTextFont(4)
-        SetTextProportional(1)
-        SetTextEntry("STRING")
-        SetTextCentre(1)
-        AddTextComponentString(text)
-        DrawText(_x, _y)
-        local factor = (string.len(text)) / 370
-        DrawRect(_x, _y + 0.0125, 0.015 + factor, 0.03, 0, 0, 0, 75)
-    end
+    SendNUIMessage({ type = 'CLOSE' })
 end
 
+local function openUi()
+    SendNUIMessage({
+        type = 'OPEN',
+        data = {
+            activePlayers = playerList,
+            disconnectedPlayers = disconnectedPlayers,
+        },
+    })
 
-RegisterNetEvent('qb-playerlist:client:manualUpdate')
-AddEventHandler('qb-playerlist:client:manualUpdate', function(activePlayers,disPlayers)
-    TriggerServerEvent('qb-playerlist:server:manualUpdate')
-    playerList = activePlayers
-    disconnectedPlayers = disPlayers
+    uiOpen = true
+    showingPlayerIds = true
+
+    SetNuiFocus(true, true)
+    SetNuiFocusKeepInput(true)
+end
+
+RegisterCommand(Config.Settings.command, function()
+    TriggerServerEvent('exter-playerlist:server:requestData')
+end, false)
+
+RegisterNetEvent('exter-playerlist:client:receiveData', function(payload)
+    playerList = payload.activePlayers or {}
+    disconnectedPlayers = payload.disconnectedPlayers or {}
+    openUi()
 end)
 
-RegisterNUICallback("getData", function(data,cb)
-    if data.variable == "online" then
+RegisterNetEvent('exter-playerlist:client:accessDenied', function()
+    TriggerEvent('chat:addMessage', {
+        color = { 255, 0, 0 },
+        multiline = false,
+        args = { 'PlayerList', 'You do not have permission to use this command.' },
+    })
+end)
+
+RegisterNUICallback('getData', function(data, cb)
+    if data.variable == 'online' then
         cb(playerList)
     else
         cb(disconnectedPlayers)
     end
 end)
+
+RegisterNUICallback('close', function(_, cb)
+    closeUi()
+    cb(true)
+end)
+
 CreateThread(function()
     while true do
-        if playerlistOpen then
-            for _, player in pairs(GetPlayersFromCoords(GetEntityCoords(PlayerPedId()), 10.0)) do
-                local PlayerId = GetPlayerServerId(player)
-                local PlayerPed = GetPlayerPed(player)
-                local PlayerCoords = GetEntityCoords(PlayerPed)
-                if not PlayerOptin[PlayerId].permission then
-                    DrawText3D(PlayerCoords.x, PlayerCoords.y, PlayerCoords.z + 1.0, '['..PlayerId..']')
-                else
-                    DrawText3D(PlayerCoords.x, PlayerCoords.y, PlayerCoords.z + 1.0, '~r~ ADMIN ~w~ ['..PlayerId..']')
+        if uiOpen and IsControlJustReleased(0, 322) then
+            closeUi()
+        end
+
+        if showingPlayerIds then
+            local playerPed = PlayerPedId()
+            local myCoords = GetEntityCoords(playerPed)
+
+            for _, localPlayer in ipairs(GetActivePlayers()) do
+                local targetPed = GetPlayerPed(localPlayer)
+                if targetPed ~= playerPed then
+                    local coords = GetEntityCoords(targetPed)
+                    if #(myCoords - coords) <= (Config.Settings.showDistance or 15.0) then
+                        local serverId = GetPlayerServerId(localPlayer)
+                        DrawText3D(coords.x, coords.y, coords.z + 1.0, tostring(serverId))
+                    end
                 end
             end
         end
-        Wait(5)
+
+        Wait(Config.Settings.refreshDelayMs or 150)
     end
 end)
 
-RegisterNUICallback("close",function()
-    SetNuiFocus(0,0)
-end)
+function DrawText3D(x, y, z, text)
+    local onScreen, screenX, screenY = World3dToScreen2d(x, y, z)
+    if not onScreen then
+        return
+    end
 
+    SetTextScale(0.35, 0.35)
+    SetTextFont(4)
+    SetTextProportional(1)
+    SetTextCentre(true)
+    SetTextEntry('STRING')
+    AddTextComponentString(text)
+    DrawText(screenX, screenY)
+
+    local factor = string.len(text) / 370
+    DrawRect(screenX, screenY + 0.0125, 0.015 + factor, 0.03, 0, 0, 0, 75)
+end
